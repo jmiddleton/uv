@@ -2,8 +2,12 @@ use core::fmt;
 use std::cmp::Reverse;
 use std::ffi::OsStr;
 use std::io::{self, Write};
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+#[cfg(windows)]
+use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
 
 use fs_err as fs;
 use itertools::Itertools;
@@ -517,10 +521,11 @@ impl ManagedPythonInstallation {
     pub fn ensure_minor_version_link(&self) -> Result<(), Error> {
         // We don't currently support transparent upgrades for PyPy or GraalPy
         // so we don't create a symlink directory (or junction on Windows).
-        if let LenientImplementationName::Known(name) = self.key.implementation() {
-            if matches!(name, ImplementationName::PyPy | ImplementationName::GraalPy) {
-                return Ok(());
-            }
+        if !matches!(
+            self.key.implementation(),
+            LenientImplementationName::Known(ImplementationName::CPython)
+        ) {
+            return Ok(());
         }
         create_symlink_directory(
             self.key.major,
@@ -663,48 +668,60 @@ pub struct DirectorySymlink {
 }
 
 impl DirectorySymlink {
-    pub fn is_self_link(&self) -> bool {
-        self.symlink == self.target_directory
-    }
-}
-
-pub fn symlink_directory_from_executable(
-    major: u8,
-    minor: u8,
-    executable: &Path,
-) -> Option<DirectorySymlink> {
-    let symlink_directory_name = symlink_directory_name(major, minor);
-    if let Some(parent) = executable.parent() {
+    pub fn try_from(major: u8, minor: u8, executable: &Path) -> Option<Self> {
+        let symlink_directory_name = format!("python{major}.{minor}-dir");
+        let parent = executable.parent()?;
         #[cfg(unix)]
         if parent
             .components()
             .next_back()
             .is_some_and(|c| c.as_os_str() == "bin")
         {
-            if let Some(target_directory) = parent.parent() {
-                let target_directory = target_directory.to_path_buf();
-                let symlink = target_directory.with_file_name(symlink_directory_name);
-                return Some(DirectorySymlink {
-                    symlink,
-                    target_directory,
-                });
-            }
-        }
-        if let Some(target_directory) = parent.parent() {
-            let target_directory = target_directory.to_path_buf();
+            let target_directory = parent.parent()?.to_path_buf();
             let symlink = target_directory.with_file_name(symlink_directory_name);
-            return Some(DirectorySymlink {
+            Some(Self {
                 symlink,
                 target_directory,
-            });
+            })
+        } else {
+            None
+        }
+        #[cfg(windows)]
+        {
+            let target_directory = parent.to_path_buf();
+            let symlink = target_directory.with_file_name(symlink_directory_name);
+            Some(Self {
+                symlink,
+                target_directory,
+            })
         }
     }
-    None
+
+    pub fn is_self_link(&self) -> bool {
+        self.symlink == self.target_directory
+    }
+
+    pub fn symlink_exists(&self) -> bool {
+        #[cfg(unix)]
+        {
+            self.symlink
+                .symlink_metadata()
+                .map(|metadata| metadata.file_type().is_symlink())
+                .unwrap_or(false)
+        }
+        #[cfg(windows)]
+        {
+            self.symlink.symlink_metadata().is_ok_and(|metadata| {
+                // Check that this is a reparse point, which indicates this
+                // is a symlink or junction.
+                (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0
+            })
+        }
+    }
 }
 
 pub fn create_symlink_directory(major: u8, minor: u8, executable: &Path) -> Result<(), Error> {
-    let Some(directory_symlink) = symlink_directory_from_executable(major, minor, executable)
-    else {
+    let Some(directory_symlink) = DirectorySymlink::try_from(major, minor, executable) else {
         return Ok(());
     };
     if directory_symlink.is_self_link() {
@@ -781,12 +798,6 @@ pub fn create_bin_link(target: &Path, executable: PathBuf) -> Result<(), Error> 
     } else {
         unimplemented!("Only Windows and Unix systems are supported.")
     }
-}
-
-/// Return the symlink directory (or junction on Windows) name for this
-/// minor version.
-pub fn symlink_directory_name(major: u8, minor: u8) -> String {
-    format!("python{major}.{minor}-dir")
 }
 
 // TODO(zanieb): Only used in tests now.

@@ -160,24 +160,23 @@ $ uv python install 3.12.8 --preview  # Updates `python3.12` to point to 3.12.8
 
 ## Upgrading Python patch versions
 
-Managed `python-build-standalone` Python minor versions can be upgraded to the latest patch.
+Managed Python minor versions can be upgraded to the latest patch. This is not currently supported
+for PyPy and GraalPy implementations.
 
 To upgrade a Python minor version to the latest patch:
 
-```
-uv python upgrade 3.12
+```console
+$ uv python upgrade 3.12
 ```
 
 To upgrade all installed Python minor versions to their latest patch versions:
 
-```
-uv python upgrade
+```console
+$ uv python upgrade
 ```
 
 All virtual environments created by uv on a minor version will transparently upgrade when that minor
-version is upgraded. A virtual environment
-[pinned to a patch version](../reference/cli.md/#uv-python-pin) will not transparently upgrade but
-will continue to respect the patch version.
+version is upgraded.
 
 ## Project Python versions
 

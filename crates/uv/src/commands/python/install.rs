@@ -81,24 +81,6 @@ impl InstallRequest {
     fn matches_installation(&self, installation: &ManagedPythonInstallation) -> bool {
         self.download_request.satisfied_by_key(installation.key())
     }
-
-    fn managed_download_matches_installation(
-        &self,
-        installation: &ManagedPythonInstallation,
-    ) -> bool {
-        self.download.key() == installation.key()
-    }
-
-    fn is_version_request(&self) -> bool {
-        matches!(self.request, PythonRequest::Version(..))
-    }
-
-    fn is_minor_request(&self) -> bool {
-        matches!(
-            self.request,
-            PythonRequest::Version(VersionRequest::MajorMinor(..))
-        )
-    }
 }
 
 impl std::fmt::Display for InstallRequest {
@@ -240,7 +222,7 @@ pub(crate) async fn install(
     if upgrade
         && requests
             .iter()
-            .any(|request| request.is_version_request() && !request.is_minor_request())
+            .any(|request| request.request.includes_patch())
     {
         writeln!(
             printer.stderr(),
@@ -311,7 +293,7 @@ pub(crate) async fn install(
         requests.iter().partition_map(|request| {
             if let Some(installation) = existing_installations.iter().find(|installation| {
                 if upgrade {
-                    request.managed_download_matches_installation(installation)
+                    request.download.key() == installation.key()
                 } else {
                     request.matches_installation(installation)
                 }

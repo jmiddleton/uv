@@ -22,13 +22,13 @@ use uv_configuration::{
 };
 use uv_distribution_types::Requirement;
 use uv_fs::which::is_executable;
-use uv_fs::{symlink_exists, PythonExt, Simplified};
+use uv_fs::{PythonExt, Simplified};
 use uv_installer::{SatisfiesResult, SitePackages};
 use uv_normalize::{DefaultExtras, DefaultGroups, PackageName};
-use uv_python::managed::symlink_directory_from_executable;
+use uv_python::managed::DirectorySymlink;
 use uv_python::{
     EnvironmentPreference, Interpreter, PyVenvConfiguration, PythonDownloads, PythonEnvironment,
-    PythonInstallation, PythonPreference, PythonRequest, PythonVersionFile,
+    PythonInstallation, PythonPreference, PythonRequest, PythonVersionFile, StandaloneInterpreter,
     VersionFileDiscoveryOptions, VersionRequest,
 };
 use uv_requirements::{RequirementsSource, RequirementsSpecification};
@@ -446,6 +446,7 @@ hint: If you are running a script with `{}` in the shebang, you may need to incl
                     false,
                     false,
                     false,
+                    false,
                 )?;
 
                 Some(environment.into_interpreter())
@@ -645,6 +646,7 @@ hint: If you are running a script with `{}` in the shebang, you may need to incl
                     temp_dir.path(),
                     interpreter,
                     uv_virtualenv::Prompt::None,
+                    false,
                     false,
                     false,
                     false,
@@ -879,6 +881,7 @@ hint: If you are running a script with `{}` in the shebang, you may need to incl
                     temp_dir.path(),
                     interpreter,
                     uv_virtualenv::Prompt::None,
+                    false,
                     false,
                     false,
                     false,
@@ -1255,20 +1258,20 @@ impl RunCommand {
     fn as_command(&self, interpreter: &Interpreter, is_patch_request: bool) -> Command {
         match self {
             Self::Python(args) => {
-                let mut process = if !interpreter.is_standalone() || is_patch_request {
+                let mut process = if is_patch_request || !interpreter.is_standalone() {
                     Command::new(interpreter.sys_executable())
                 } else {
-                    let executable = interpreter
-                        .maybe_symlink_path_from_base_python(interpreter.sys_executable())
+                    let executable = StandaloneInterpreter::try_from(interpreter)
+                        .and_then(|standalone| {
+                            standalone.symlink_path_from_base_python(interpreter.sys_executable())
+                        })
                         .filter(|symlink_path| {
-                            symlink_directory_from_executable(
+                            DirectorySymlink::try_from(
                                 interpreter.python_major(),
                                 interpreter.python_minor(),
                                 symlink_path.as_path(),
                             )
-                            .is_some_and(|directory_symlink| {
-                                symlink_exists(directory_symlink.symlink.as_path())
-                            })
+                            .is_some_and(|directory_symlink| directory_symlink.symlink_exists())
                         })
                         .unwrap_or_else(|| PathBuf::from(interpreter.sys_executable()));
                     Command::new(executable)
