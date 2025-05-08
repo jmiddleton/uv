@@ -141,6 +141,69 @@ fn python_upgrade_transparent_from_venv() {
     ");
 
     // Create a virtual environment
+    uv_snapshot!(context.filters(), context.venv(), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+
+    ----- stderr -----
+    Using CPython 3.10.8
+    Creating virtual environment at: .venv
+    Activate with: source .venv/[BIN]/activate
+    ");
+
+    uv_snapshot!(context.filters(), context.run().arg("python").arg("--version"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.10.8
+
+    ----- stderr -----
+    "
+    );
+
+    // Upgrade patch version
+    uv_snapshot!(context.filters(), context.python_upgrade().arg("3.10"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+
+    ----- stderr -----
+    Installed Python 3.10.17 in [TIME]
+     + cpython-3.10.17-[PLATFORM]
+    ");
+
+    // Virtual environment should reflect upgraded patch
+    uv_snapshot!(context.filters(), context.run().arg("python").arg("--version"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.10.17
+
+    ----- stderr -----
+    "
+    );
+}
+
+#[test]
+fn python_upgrade_transparent_from_venv_with_minor_request() {
+    let context: TestContext = TestContext::new_with_versions(&["3.13"])
+        .with_filtered_python_keys()
+        .with_filtered_exe_suffix()
+        .with_managed_python_dirs();
+
+    // Install an earlier patch version
+    uv_snapshot!(context.filters(), context.python_install().arg("3.10.8"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+
+    ----- stderr -----
+    Installed Python 3.10.8 in [TIME]
+     + cpython-3.10.8-[PLATFORM]
+    ");
+
+    // Create a virtual environment
     uv_snapshot!(context.filters(), context.venv().arg("-p").arg("3.10"), @r"
     success: true
     exit_code: 0
@@ -376,7 +439,7 @@ fn python_upgrade_ignored_with_python_pin() {
 // Virtual environments only record minor versions. `uv venv -p 3.x.y` will
 // not prevent transparent upgrades.
 #[test]
-fn python_transparent_upgrade_despite_venv_patch_specification() {
+fn python_no_transparent_upgrade_with_venv_patch_specification() {
     let context: TestContext = TestContext::new_with_versions(&["3.13"])
         .with_filtered_python_keys()
         .with_filtered_exe_suffix()
@@ -400,7 +463,6 @@ fn python_transparent_upgrade_despite_venv_patch_specification() {
     ----- stdout -----
 
     ----- stderr -----
-    warning: Virtual environments only record Python minor versions. You could use `uv python pin python3.10.8` to pin the full version
     Using CPython 3.10.8
     Creating virtual environment at: .venv
     Activate with: source .venv/[BIN]/activate
@@ -432,7 +494,7 @@ fn python_transparent_upgrade_despite_venv_patch_specification() {
     success: true
     exit_code: 0
     ----- stdout -----
-    Python 3.10.17
+    Python 3.10.8
 
     ----- stderr -----
     "
@@ -443,7 +505,7 @@ fn python_transparent_upgrade_despite_venv_patch_specification() {
 // virtual environments.
 #[test]
 fn python_transparent_upgrade_venv_venv() {
-    let context: TestContext = TestContext::new_with_versions(&[])
+    let context: TestContext = TestContext::new_with_versions(&["3.13"])
         .with_filtered_python_keys()
         .with_filtered_exe_suffix()
         .with_managed_python_dirs();
@@ -471,8 +533,16 @@ fn python_transparent_upgrade_venv_venv() {
     Activate with: source .venv/[BIN]/activate
     ");
 
+    let venv_scripts = if cfg!(windows) {
+        context.venv.child("Scripts")
+    } else {
+        context.venv.child("bin")
+    };
+
     // Init a new project from within a virtual environment
-    uv_snapshot!(context.filters(), context.init().arg("proj"), @r"
+    // (simulating an active environment via `$PATH`).
+    uv_snapshot!(context.filters(), context.init().arg("proj")
+        .env(EnvVars::PATH, venv_scripts.as_os_str()), @r"
     success: true
     exit_code: 0
     ----- stdout -----
@@ -483,7 +553,8 @@ fn python_transparent_upgrade_venv_venv() {
 
     // Create a new virtual environment from within a virtual environment
     uv_snapshot!(context.filters(), context.venv()
-        .arg("--directory").arg("proj"), @r"
+        .arg("--directory").arg("proj")
+        .env(EnvVars::PATH, venv_scripts.as_os_str()), @r"
     success: true
     exit_code: 0
     ----- stdout -----
@@ -522,17 +593,22 @@ fn python_transparent_upgrade_venv_venv() {
     ");
 
     // Should have transparently upgraded in second virtual environment
+    // TODO(john): This shouldn't recreate the virtual environment. We
+    // need to activate the first virtual environment in this test when
+    // creating the second.
     uv_snapshot!(context.filters(), context.run()
         .env(EnvVars::VIRTUAL_ENV, ".venv")
         .arg("--directory").arg("proj")
-        .arg("python").arg("--version")
-        .env_remove(EnvVars::VIRTUAL_ENV), @r"
+        .arg("python").arg("--version"), @r"
     success: true
     exit_code: 0
     ----- stdout -----
     Python 3.10.17
 
     ----- stderr -----
+    Using CPython 3.10.17
+    Removed virtual environment at: .venv
+    Creating virtual environment at: .venv
     Resolved 1 package in [TIME]
     Audited in [TIME]
     "

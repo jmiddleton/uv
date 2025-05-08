@@ -35,7 +35,7 @@ use uv_fs::{Simplified, CWD};
 use uv_pep440::release_specifiers_to_ranges;
 use uv_pep508::VersionOrUrl;
 use uv_pypi_types::{ParsedDirectoryUrl, ParsedUrl};
-use uv_python::{PythonRequest, VersionRequest};
+use uv_python::PythonRequest;
 use uv_requirements::RequirementsSource;
 use uv_requirements_txt::RequirementsTxtRequirement;
 use uv_scripts::{Pep723Error, Pep723Item, Pep723ItemRef, Pep723Metadata, Pep723Script};
@@ -1007,12 +1007,6 @@ async fn run(mut cli: Cli) -> Result<ExitStatus> {
 
             let python_request: Option<PythonRequest> =
                 args.settings.python.as_deref().map(PythonRequest::parse);
-
-            if let Some(PythonRequest::Version(ref version_request)) = python_request {
-                if let VersionRequest::MajorMinorPatch(..) = version_request {
-                    warn_user_once!("Virtual environments only record Python minor versions. You could use `uv python pin python{version_request}` to pin the full version");
-                }
-            }
 
             commands::venv(
                 &project_dir,

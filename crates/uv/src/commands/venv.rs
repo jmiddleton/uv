@@ -264,6 +264,10 @@ async fn venv_impl(
     )
     .into_diagnostic()?;
 
+    let upgradeable = python_request
+        .as_ref()
+        .is_none_or(|request| !request.includes_patch());
+
     // Create the virtual environment.
     let venv = uv_virtualenv::create_venv(
         &path,
@@ -273,6 +277,7 @@ async fn venv_impl(
         allow_existing,
         relocatable,
         seed,
+        upgradeable,
     )
     .map_err(VenvError::Creation)?;
 

@@ -26,7 +26,7 @@ use uv_platform_tags::{Tags, TagsError};
 use uv_pypi_types::{ResolverMarkerEnvironment, Scheme};
 
 use crate::implementation::LenientImplementationName;
-use crate::managed::{symlink_directory_from_executable, ManagedPythonInstallations};
+use crate::managed::{DirectorySymlink, ManagedPythonInstallations};
 use crate::platform::{Arch, Libc, Os};
 use crate::pointer_size::PointerSize;
 use crate::{
@@ -137,50 +137,6 @@ impl Interpreter {
         let base_executable = self.sys_base_executable().unwrap_or(self.sys_executable());
         let base_python = std::path::absolute(base_executable)?;
         Ok(base_python)
-    }
-
-    /// Attempt to derive a path from base Python that substitutes a minor
-    /// version symlink directory (or junction on Windows) for the patch version
-    /// directory.
-    ///
-    /// If this interpreter is PyPy or GraalPy, return [`None`].
-    pub fn maybe_symlink_path_from_base_python(&self, base_python: &Path) -> Option<PathBuf> {
-        if self.markers().implementation_name() == "pypy"
-            || self.markers().implementation_name() == "graalpy"
-        {
-            return None;
-        }
-        let symlink_directory = symlink_directory_from_executable(
-            self.python_major(),
-            self.python_minor(),
-            base_python,
-        )?;
-
-        let file_name = base_python
-            .file_name()
-            .expect("base_python to have a file name");
-
-        #[cfg(unix)]
-        {
-            let path_link = symlink_directory.symlink.join("bin").join(file_name);
-
-            debug!(
-                "Using directory symlink instead of base Python path: {}",
-                &path_link.display()
-            );
-            Some(path_link)
-        }
-
-        #[cfg(windows)]
-        {
-            let path_link = symlink_directory.symlink.join(file_name);
-
-            debug!(
-                "Using junction instead of base Python path: {}",
-                &path_link.display()
-            );
-            Some(path_link)
-        }
     }
 
     /// Determine the base Python executable; that is, the Python executable that should be
@@ -553,10 +509,7 @@ impl Interpreter {
     // set `PYTHON_BUILD_STANDALONE=1`.`
     #[cfg(windows)]
     pub fn is_standalone(&self) -> bool {
-        self.standalone
-            || (self.is_managed()
-                && self.markers().implementation_name() != "pypy"
-                && self.markers().implementation_name() != "graalpy")
+        self.standalone || (self.is_managed() && self.markers().implementation_name() == "cpython")
     }
 
     /// Return the [`Layout`] environment used to install wheels into this interpreter.
@@ -652,6 +605,54 @@ impl Interpreter {
             .executable_names(None)
             .into_iter()
             .any(|default_name| name == default_name.to_string())
+    }
+}
+
+pub struct StandaloneInterpreter<'a>(&'a Interpreter);
+
+impl<'a> StandaloneInterpreter<'a> {
+    pub fn try_from(interpreter: &'a Interpreter) -> Option<Self> {
+        if interpreter.is_standalone() {
+            Some(Self(interpreter))
+        } else {
+            None
+        }
+    }
+
+    /// Attempt to derive a path from base Python that substitutes a minor
+    /// version symlink directory (or junction on Windows) for the patch version
+    /// directory.
+    ///
+    /// If this interpreter is PyPy or GraalPy, return [`None`].
+    pub fn symlink_path_from_base_python(&self, base_python: &Path) -> Option<PathBuf> {
+        let symlink_directory =
+            DirectorySymlink::try_from(self.0.python_major(), self.0.python_minor(), base_python)?;
+
+        let file_name = base_python
+            .file_name()
+            .expect("base_python to have a file name");
+
+        #[cfg(unix)]
+        {
+            let path_link = symlink_directory.symlink.join("bin").join(file_name);
+
+            debug!(
+                "Using directory symlink instead of base Python path: {}",
+                &path_link.display()
+            );
+            Some(path_link)
+        }
+
+        #[cfg(windows)]
+        {
+            let path_link = symlink_directory.symlink.join(file_name);
+
+            debug!(
+                "Using junction instead of base Python path: {}",
+                &path_link.display()
+            );
+            Some(path_link)
+        }
     }
 }
 
