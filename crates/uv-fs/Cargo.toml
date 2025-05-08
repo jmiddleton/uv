@@ -33,7 +33,6 @@ tracing = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winsafe = { workspace = true }
-windows-sys = { workspace = true }
 
 [target.'cfg(any(unix, target_os = "wasi", target_os = "redox"))'.dependencies]
 rustix = { workspace = true }
