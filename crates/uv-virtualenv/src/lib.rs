@@ -64,6 +64,7 @@ pub fn create_venv(
         upgradeable,
     )?;
 
+    dbg!("virtualenv: {:?}", &virtualenv);
     // Create the corresponding `PythonEnvironment`.
     let interpreter = interpreter.with_virtualenv(virtualenv);
     Ok(PythonEnvironment::from_interpreter(interpreter))
