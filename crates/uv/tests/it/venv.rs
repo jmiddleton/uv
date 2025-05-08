@@ -694,7 +694,6 @@ fn create_venv_unknown_python_patch() {
         ----- stdout -----
 
         ----- stderr -----
-        warning: Virtual environments only record Python minor versions. You could use `uv python pin python3.12.100` to pin the full version
           × No interpreter found for Python 3.12.100 in managed installations or search path
         "
         );

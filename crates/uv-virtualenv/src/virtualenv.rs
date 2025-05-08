@@ -10,12 +10,10 @@ use fs_err::File;
 use itertools::Itertools;
 use tracing::debug;
 
-use uv_fs::{cachedir, symlink_exists, Simplified, CWD};
+use uv_fs::{cachedir, Simplified, CWD};
 use uv_pypi_types::Scheme;
-use uv_python::managed::{
-    create_bin_link, create_symlink_directory, symlink_directory_from_executable,
-};
-use uv_python::{Interpreter, VirtualEnvironment};
+use uv_python::managed::{create_bin_link, create_symlink_directory, DirectorySymlink};
+use uv_python::{Interpreter, StandaloneInterpreter, VirtualEnvironment};
 use uv_shell::escape_posix_for_single_quotes;
 use uv_version::version;
 
@@ -56,6 +54,7 @@ pub(crate) fn create(
     allow_existing: bool,
     relocatable: bool,
     seed: bool,
+    upgradeable: bool,
 ) -> Result<VirtualEnvironment, Error> {
     // Determine the base Python executable; that is, the Python executable that should be
     // considered the "base" for the virtual environment.
@@ -147,12 +146,12 @@ pub(crate) fn create(
     fs::write(location.join(".gitignore"), "*")?;
 
     let mut using_symlink_path = false;
-    let executable_target = if interpreter.is_standalone() {
-        if let Some(symlink_path) =
-            interpreter.maybe_symlink_path_from_base_python(base_python.as_path())
-        {
-            using_symlink_path = true;
-            symlink_path
+    let executable_target = if upgradeable {
+        if let Some(standalone_interpreter) = StandaloneInterpreter::try_from(interpreter) {
+            standalone_interpreter
+                .symlink_path_from_base_python(base_python.as_path())
+                .inspect(|_| using_symlink_path = true)
+                .unwrap_or_else(|| base_python.clone())
         } else {
             base_python.clone()
         }
@@ -179,12 +178,12 @@ pub(crate) fn create(
     let executable = scripts.join(format!("python{EXE_SUFFIX}"));
 
     if using_symlink_path {
-        if symlink_directory_from_executable(
+        if DirectorySymlink::try_from(
             interpreter.python_major(),
             interpreter.python_minor(),
             executable_target.as_path(),
         )
-        .is_some_and(|directory_symlink| !symlink_exists(directory_symlink.symlink.as_path()))
+        .is_some_and(|directory_symlink| !directory_symlink.symlink_exists())
         {
             create_symlink_directory(
                 interpreter.python_major(),
@@ -382,7 +381,7 @@ pub(crate) fn create(
         ("uv".to_string(), version().to_string()),
         (
             "version_info".to_string(),
-            interpreter.markers().python_version().string.clone(),
+            interpreter.markers().python_full_version().string.clone(),
         ),
         (
             "include-system-site-packages".to_string(),
