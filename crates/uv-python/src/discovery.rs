@@ -711,6 +711,7 @@ fn interpreter_satisfies_environment_preference(
         }
         (EnvironmentPreference::ExplicitSystem, true) => true,
         (EnvironmentPreference::ExplicitSystem, false) => {
+            dbg!("source: {:?}, sys_executable: {:?}", &source, &interpreter.sys_executable());
             if matches!(
                 source,
                 PythonSource::ProvidedPath | PythonSource::ParentInterpreter
