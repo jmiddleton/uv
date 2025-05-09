@@ -455,9 +455,9 @@ fn clear_app_starting_state(child_handle: HANDLE) {
 }
 
 pub fn bounce(is_gui: bool) -> ! {
-    dbg!("cwd: {:?}", std::env::current_dir().as_os_str());
+    dbg!("cwd: {:?}", std::env::current_dir().expect("FIXME"));
     // FIXME: Is this the right place?
-    std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().as_os_str());
+    std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME"));
     let child_cmdline = make_child_cmdline();
 
     let mut si = STARTUPINFOA::default();
