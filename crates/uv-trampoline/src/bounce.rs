@@ -465,7 +465,7 @@ fn clear_app_starting_state(child_handle: HANDLE) {
 }
 
 pub fn bounce(is_gui: bool) -> ! {
-    warn!("!@cwd: {}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
+    // warn!("!@cwd: {}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
     let child_cmdline = make_child_cmdline();
 
     let mut si = STARTUPINFOA::default();
