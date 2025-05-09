@@ -82,10 +82,10 @@ fn make_child_cmdline() -> CString {
     match kind {
         TrampolineKind::Python => {
             warn!("!@Setting env launcher");
-            warn!("!@cwd: {:?}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
+            warn!("!@cwd: {:?}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy().to_string());
             // FIXME: Is this the right place?
             unsafe {
-                std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
+                std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy().to_string());
             }
         }
         TrampolineKind::Script => {
@@ -465,7 +465,7 @@ fn clear_app_starting_state(child_handle: HANDLE) {
 }
 
 pub fn bounce(is_gui: bool) -> ! {
-    warn!("!@cwd: {:?}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
+    warn!("!@cwd: {:?}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy().to_string());
     let child_cmdline = make_child_cmdline();
 
     let mut si = STARTUPINFOA::default();
