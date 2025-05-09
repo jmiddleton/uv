@@ -75,16 +75,18 @@ fn make_child_cmdline() -> CString {
     push_quoted_path(python_exe.as_ref(), &mut child_cmdline);
     child_cmdline.push(b' ');
 
-    warn!("Creating child cmdline");
+    warn!("!@Creating child cmdline");
 
     // Only execute the trampoline again if it's a script, otherwise, just invoke Python.
     // FIXME Doc
     match kind {
         TrampolineKind::Python => {
-            warn!("Setting env launcher");
-            warn!("cwd: {:?}", std::env::current_dir().expect("FIXME").as_path().to_str());
+            warn!("!@Setting env launcher");
+            warn!("!@cwd: {:?}", std::env::current_dir().expect("FIXME").as_os_str());
             // FIXME: Is this the right place?
-            std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME").as_path().to_str());
+            unsafe {
+                std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME").as_os_str());
+            }
         }
         TrampolineKind::Script => {
             // Use the full executable name because CMD only passes the name of the executable (but not the path)
@@ -463,7 +465,7 @@ fn clear_app_starting_state(child_handle: HANDLE) {
 }
 
 pub fn bounce(is_gui: bool) -> ! {
-    warn!("cwd: {:?}", std::env::current_dir().expect("FIXME").as_path().to_str());
+    warn!("!@cwd: {:?}", std::env::current_dir().expect("FIXME").as_os_str());
     let child_cmdline = make_child_cmdline();
 
     let mut si = STARTUPINFOA::default();
