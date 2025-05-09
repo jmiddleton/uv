@@ -67,6 +67,7 @@ impl TrampolineKind {
 /// depending on the [`TrampolineKind`].
 fn make_child_cmdline() -> CString {
     dbg!("make_child_cmdline!");
+    warn!("!@ make_child_cmdline!");
     let executable_name = std::env::current_exe().unwrap_or_else(|_| {
         error_and_exit("Failed to get executable name");
     });
@@ -468,6 +469,7 @@ fn clear_app_starting_state(child_handle: HANDLE) {
 pub fn bounce(is_gui: bool) -> ! {
     // warn!("!@cwd: {}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
     dbg!("Bounce!");
+    warn!("!@Bounce!");
     let child_cmdline = make_child_cmdline();
 
     let mut si = STARTUPINFOA::default();
