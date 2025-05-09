@@ -229,7 +229,9 @@ pub(crate) fn create(
     if cfg!(windows) {
         if interpreter.is_standalone() {
             let target = scripts.join(WindowsExecutable::Python.exe(interpreter));
-            create_bin_link(target.as_path(), executable_target).map_err(Error::Python)?;
+            create_bin_link(target.as_path(), executable_target.clone()).map_err(Error::Python)?;
+            let targetw = scripts.join(WindowsExecutable::Pythonw.exe(interpreter));
+            create_bin_link(targetw.as_path(), executable_target).map_err(Error::Python)?;
         } else {
             copy_launcher_windows(
                 WindowsExecutable::Python,
