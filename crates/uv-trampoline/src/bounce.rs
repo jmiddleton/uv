@@ -82,9 +82,9 @@ fn make_child_cmdline() -> CString {
     match kind {
         TrampolineKind::Python => {
             warn!("Setting env launcher");
-            warn!("cwd: {:?}", std::env::current_dir().expect("FIXME"));
+            warn!("cwd: {:?}", std::env::current_dir().expect("FIXME").as_path().to_str());
             // FIXME: Is this the right place?
-            std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME"));
+            std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME").as_path().to_str());
         }
         TrampolineKind::Script => {
             // Use the full executable name because CMD only passes the name of the executable (but not the path)
@@ -463,7 +463,7 @@ fn clear_app_starting_state(child_handle: HANDLE) {
 }
 
 pub fn bounce(is_gui: bool) -> ! {
-    warn!("cwd: {:?}", std::env::current_dir().expect("FIXME"));
+    warn!("cwd: {:?}", std::env::current_dir().expect("FIXME").as_path().to_str());
     let child_cmdline = make_child_cmdline();
 
     let mut si = STARTUPINFOA::default();
