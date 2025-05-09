@@ -76,8 +76,13 @@ fn make_child_cmdline() -> CString {
     child_cmdline.push(b' ');
 
     // Only execute the trampoline again if it's a script, otherwise, just invoke Python.
+    // FIXME Doc
     match kind {
-        TrampolineKind::Python => {}
+        TrampolineKind::Python => {
+            dbg!("cwd: {:?}", std::env::current_dir().expect("FIXME"));
+            // FIXME: Is this the right place?
+            std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME"));
+        }
         TrampolineKind::Script => {
             // Use the full executable name because CMD only passes the name of the executable (but not the path)
             // when e.g. invoking `black` instead of `<PATH_TO_VENV>/Scripts/black` and Python then fails
@@ -455,9 +460,6 @@ fn clear_app_starting_state(child_handle: HANDLE) {
 }
 
 pub fn bounce(is_gui: bool) -> ! {
-    dbg!("cwd: {:?}", std::env::current_dir().expect("FIXME"));
-    // FIXME: Is this the right place?
-    std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME"));
     let child_cmdline = make_child_cmdline();
 
     let mut si = STARTUPINFOA::default();
