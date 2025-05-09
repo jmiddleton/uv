@@ -873,12 +873,12 @@ impl InterpreterInfo {
                 err,
             })?;
 
+        dbg!("stderr: {:?}", String::from_utf8_lossy(&output.stderr).trim().to_string());
+        dbg!("stdout: {:?}", String::from_utf8_lossy(&output.stdout).trim().to_string());
+        dbg!("path: {:?}", interpreter.to_path_buf());
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            dbg!("code: {:?}", &output.status);
-            dbg!("stderr: {:?}", &stderr);
-            dbg!("stdout: {:?}", String::from_utf8_lossy(&output.stdout).trim().to_string());
-            dbg!("path: {:?}", interpreter.to_path_buf());
             // If the Python version is too old, we may not even be able to invoke the query script
             if stderr.contains("Unknown option: -I") {
                 return Err(Error::QueryScript {
