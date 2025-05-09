@@ -87,7 +87,7 @@ fn make_child_cmdline() -> CString {
             // warn!("!@cwd: {}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
             // FIXME: Is this the right place?
             unsafe {
-                std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME"));
+                std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_exe().expect("FIXME"));
             }
         }
         TrampolineKind::Script => {
