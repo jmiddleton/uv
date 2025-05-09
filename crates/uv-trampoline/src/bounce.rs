@@ -75,17 +75,17 @@ fn make_child_cmdline() -> CString {
     push_quoted_path(python_exe.as_ref(), &mut child_cmdline);
     child_cmdline.push(b' ');
 
-    warn!("!@Creating child cmdline");
+    // warn!("!@Creating child cmdline");
 
     // Only execute the trampoline again if it's a script, otherwise, just invoke Python.
     // FIXME Doc
     match kind {
         TrampolineKind::Python => {
-            warn!("!@Setting env launcher");
-            warn!("!@cwd: {}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
+            // warn!("!@Setting env launcher");
+            // warn!("!@cwd: {}", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy());
             // FIXME: Is this the right place?
             unsafe {
-                std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME").as_os_str().to_string_lossy().to_string());
+                std::env::set_var("__PYVENV_LAUNCHER__", std::env::current_dir().expect("FIXME"));
             }
         }
         TrampolineKind::Script => {
