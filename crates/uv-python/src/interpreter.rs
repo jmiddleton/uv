@@ -861,7 +861,7 @@ impl InterpreterInfo {
             r#"import sys; sys.path = ["{}"] + sys.path; from python.get_interpreter_info import main; main()"#,
             tempdir.path().escape_for_python()
         );
-        dbg!("Script: {:?}", script);
+        dbg!("Script: {:?}", &script);
         let output = Command::new(interpreter)
             .arg("-I") // Isolated mode.
             .arg("-B") // Don't write bytecode.
