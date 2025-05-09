@@ -861,6 +861,7 @@ impl InterpreterInfo {
             r#"import sys; sys.path = ["{}"] + sys.path; from python.get_interpreter_info import main; main()"#,
             tempdir.path().escape_for_python()
         );
+        dbg!("Script: {:?}", script);
         let output = Command::new(interpreter)
             .arg("-I") // Isolated mode.
             .arg("-B") // Don't write bytecode.
@@ -874,7 +875,10 @@ impl InterpreterInfo {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-
+            dbg!("code: {:?}", output.status);
+            dbg!("stderr: {:?}", stderr);
+            dbg!("stdout: {:?}", String::from_utf8_lossy(&output.stdout).trim().to_string());
+            dbg!("path: {:?}", interpreter.to_path_buf());
             // If the Python version is too old, we may not even be able to invoke the query script
             if stderr.contains("Unknown option: -I") {
                 return Err(Error::QueryScript {
