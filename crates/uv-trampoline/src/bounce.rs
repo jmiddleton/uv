@@ -242,10 +242,16 @@ fn read_trampoline_metadata(executable_name: &Path) -> (TrampolineKind, PathBuf)
         parent_dir.join(path)
     };
 
-    // NOTICE: dunce adds 5kb~
-    let path = dunce::canonicalize(path.as_path()).unwrap_or_else(|_| {
-        error_and_exit("Failed to canonicalize script path");
-    });
+    let path = if !path.is_absolute() || matches!(kind, TrampolineKind::Script) {
+        // // NOTICE: dunce adds 5kb~
+        dunce::canonicalize(path.as_path()).unwrap_or_else(|_| {
+            error_and_exit("Failed to canonicalize script path");
+        })
+    } else {
+        // For Python trampolines with absolute paths, we skip `dunce::canonicalize` to
+        // avoid resolving junctions.
+        path
+    };
 
     (kind, path)
 }
