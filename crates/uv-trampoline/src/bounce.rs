@@ -89,6 +89,10 @@ fn make_child_cmdline() -> CString {
                     // (in `launcher.c`). This allows virtual environments to
                     // be correctly detected when using trampolines.
                     std::env::set_var("__PYVENV_LAUNCHER__", current_exe);
+                    if !check_pyvenvcfg_home(python_exe.as_path()) {
+                        dbg!("***** Setting PYTHONHOME to {:?}", python_exe.as_path());
+                        std::env::set_var("PYTHONHOME", python_exe.as_path());
+                    }
                 }
             }
         }
@@ -135,6 +139,35 @@ fn push_quoted_path(path: &Path, command: &mut Vec<u8>) {
         }
     }
     command.extend(br#"""#);
+}
+
+fn check_pyvenvcfg_home(exec_dir: &Path) -> bool {
+    let Some(parent_dir) = exec_dir.parent() else {
+        return false;
+    };
+
+    for dir in &[parent_dir, exec_dir] {
+        let pyvenv_path = dir.join("pyvenv.cfg");
+        if pyvenv_path.exists() {
+            return true;
+            // if let Ok(file) = File::open(&pyvenv_path) {
+            //     let reader = BufReader::new(file);
+            //     for line in reader.lines() {
+            //         if let Ok(line) = line {
+            //             if line.trim().starts_with("home") {
+            //                 let parts: Vec<&str> = line.splitn(2, '=').collect();
+            //                 if parts.len() > 1 {
+            //                     venv_home = parts[1].trim().to_string();
+            //                     found_venv_cfg = true;
+            //                     break;
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+        }
+    }
+    false
 }
 
 /// Reads the executable binary from the back to find:
