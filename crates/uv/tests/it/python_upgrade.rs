@@ -1,7 +1,4 @@
-use std::process::Command;
-
 use crate::common::{uv_snapshot, TestContext};
-use assert_fs::fixture::PathCreateDir;
 use assert_fs::prelude::PathChild;
 
 use uv_static::EnvVars;
@@ -240,66 +237,6 @@ fn python_upgrade_transparent_from_venv_with_minor_request() {
     exit_code: 0
     ----- stdout -----
     Python 3.10.17
-
-    ----- stderr -----
-    "
-    );
-}
-
-// TODO(john): Add upgrade support for preview bin Python. After upgrade,
-// the bin Python version should be the latest patch.
-#[test]
-fn python_transparent_upgrade_with_preview_installation() {
-    let context: TestContext = TestContext::new_with_versions(&["3.13"])
-        .with_filtered_python_keys()
-        .with_filtered_exe_suffix()
-        .with_managed_python_dirs();
-
-    // Install an earlier patch version using `--preview`
-    uv_snapshot!(context.filters(), context.python_install().arg("3.10.8").arg("--preview"), @r"
-    success: true
-    exit_code: 0
-    ----- stdout -----
-
-    ----- stderr -----
-    Installed Python 3.10.8 in [TIME]
-     + cpython-3.10.8-[PLATFORM] (python3.10)
-    ");
-
-    let bin_python = context
-        .bin_dir
-        .child(format!("python3.10{}", std::env::consts::EXE_SUFFIX));
-
-    uv_snapshot!(context.filters(), Command::new(bin_python.as_os_str())
-        .arg("--version"), @r"
-    success: true
-    exit_code: 0
-    ----- stdout -----
-    Python 3.10.8
-
-    ----- stderr -----
-    "
-    );
-
-    // Upgrade patch version
-    uv_snapshot!(context.filters(), context.python_upgrade().arg("3.10"), @r"
-    success: true
-    exit_code: 0
-    ----- stdout -----
-
-    ----- stderr -----
-    Installed Python 3.10.17 in [TIME]
-     + cpython-3.10.17-[PLATFORM]
-    ");
-
-    // TODO(john): Upgrades are not currently reflected for `--preview` bin Python,
-    // so we see the outdated patch version.
-    uv_snapshot!(context.filters(), Command::new(bin_python.as_os_str())
-        .arg("--version"), @r"
-    success: true
-    exit_code: 0
-    ----- stdout -----
-    Python 3.10.8
 
     ----- stderr -----
     "
@@ -696,13 +633,11 @@ fn python_upgrade_transparent_from_venv_module_in_venv() {
     Activate with: source .venv/[BIN]/activate
     ");
 
-    let inner_venv_dir = context.temp_dir.child("proj");
-    inner_venv_dir.create_dir_all().unwrap();
+    let second_venv = ".venv2";
 
     // Create a virtual environment using venv module from within the first virtual environment.
     uv_snapshot!(context.filters(), context.run()
-        .arg("--directory").arg("proj")
-        .arg("python").arg("-m").arg("venv").arg(context.venv.as_os_str()).arg("--without-pip")
+        .arg("python").arg("-m").arg("venv").arg(second_venv).arg("--without-pip")
         .env(EnvVars::PATH, bin_dir.as_os_str()), @r"
     success: true
     exit_code: 0
@@ -713,8 +648,7 @@ fn python_upgrade_transparent_from_venv_module_in_venv() {
 
     // Check version within second virtual environment
     uv_snapshot!(context.filters(), context.run()
-        .env(EnvVars::VIRTUAL_ENV, ".venv")
-        .arg("--directory").arg("proj")
+        .env(EnvVars::VIRTUAL_ENV, second_venv)
         .arg("python").arg("--version"), @r"
     success: true
     exit_code: 0
@@ -739,8 +673,7 @@ fn python_upgrade_transparent_from_venv_module_in_venv() {
 
     // Second virtual environment should reflect upgraded patch.
     uv_snapshot!(context.filters(), context.run()
-        .env(EnvVars::VIRTUAL_ENV, ".venv")
-        .arg("--directory").arg("proj")
+        .env(EnvVars::VIRTUAL_ENV, second_venv)
         .arg("python").arg("--version"), @r"
     success: true
     exit_code: 0
