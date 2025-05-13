@@ -634,7 +634,7 @@ impl<'a> StandaloneInterpreter<'a> {
 
         #[cfg(unix)]
         {
-            let path_link = symlink_directory.symlink.join("bin").join(file_name);
+            let path_link = symlink_directory.symlink_directory.join("bin").join(file_name);
 
             debug!(
                 "Using directory symlink instead of base Python path: {}",

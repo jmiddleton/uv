@@ -518,14 +518,14 @@ impl ManagedPythonInstallation {
 
     /// Ensure the environment contains the symlink directory (or junction on Windows)
     /// pointing to the patch directory for this minor version.
-    pub fn ensure_minor_version_link(&self) -> Result<(), Error> {
+    pub fn ensure_minor_version_link(&self) -> Result<Option<DirectorySymlink>, Error> {
         // We don't currently support transparent upgrades for PyPy or GraalPy
         // so we don't create a symlink directory (or junction on Windows).
         if !matches!(
             self.key.implementation(),
             LenientImplementationName::Known(ImplementationName::CPython)
         ) {
-            return Ok(());
+            return Ok(None);
         }
         create_symlink_directory(
             self.key.major,
@@ -663,12 +663,14 @@ impl ManagedPythonInstallation {
 
 #[derive(Clone, Debug)]
 pub struct DirectorySymlink {
-    pub symlink: PathBuf,
+    pub symlink_directory: PathBuf,
+    pub symlink_executable: PathBuf,
     pub target_directory: PathBuf,
 }
 
 impl DirectorySymlink {
     pub fn try_from(major: u8, minor: u8, executable: &Path) -> Option<Self> {
+        let executable_name = executable.file_name().expect("FIXME");
         let symlink_directory_name = format!("python{major}.{minor}-dir");
         let parent = executable.parent()?;
         #[cfg(unix)]
@@ -679,8 +681,10 @@ impl DirectorySymlink {
         {
             let target_directory = parent.parent()?.to_path_buf();
             let symlink = target_directory.with_file_name(symlink_directory_name);
+            let symlink_executable = symlink.join("bin").join(executable_name);
             Some(Self {
-                symlink,
+                symlink_directory: symlink,
+                symlink_executable,
                 target_directory,
             })
         } else {
@@ -690,21 +694,23 @@ impl DirectorySymlink {
         {
             let target_directory = parent.to_path_buf();
             let symlink = target_directory.with_file_name(symlink_directory_name);
+            let symlink_directory = symlink.join(executable_name);
             Some(Self {
                 symlink,
+                symlink_directory,
                 target_directory,
             })
         }
     }
 
     pub fn is_self_link(&self) -> bool {
-        self.symlink == self.target_directory
+        self.symlink_directory == self.target_directory
     }
 
     pub fn symlink_exists(&self) -> bool {
         #[cfg(unix)]
         {
-            self.symlink
+            self.symlink_directory
                 .symlink_metadata()
                 .map(|metadata| metadata.file_type().is_symlink())
                 .unwrap_or(false)
@@ -720,22 +726,22 @@ impl DirectorySymlink {
     }
 }
 
-pub fn create_symlink_directory(major: u8, minor: u8, executable: &Path) -> Result<(), Error> {
+pub fn create_symlink_directory(major: u8, minor: u8, executable: &Path) -> Result<Option<DirectorySymlink>, Error> {
     let Some(directory_symlink) = DirectorySymlink::try_from(major, minor, executable) else {
-        return Ok(());
+        return Ok(None);
     };
     if directory_symlink.is_self_link() {
-        return Ok(());
+        return Ok(None);
     }
 
     match replace_symlink(
         directory_symlink.target_directory.as_path(),
-        directory_symlink.symlink.as_path(),
+        directory_symlink.symlink_directory.as_path(),
     ) {
         Ok(()) => {
             debug!(
                 "Created link {} -> {}",
-                &directory_symlink.symlink.user_display(),
+                &directory_symlink.symlink_directory.user_display(),
                 &directory_symlink.target_directory.user_display(),
             );
         }
@@ -747,13 +753,13 @@ pub fn create_symlink_directory(major: u8, minor: u8, executable: &Path) -> Resu
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
         Err(err) => {
             return Err(Error::ExecutableLinkDirectory {
-                from: directory_symlink.symlink,
+                from: directory_symlink.symlink_directory,
                 to: directory_symlink.target_directory,
                 err,
             })
         }
     }
-    Ok(())
+    Ok(Some(directory_symlink))
 }
 
 /// Create a link to the managed Python executable.
