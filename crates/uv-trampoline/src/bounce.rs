@@ -91,7 +91,7 @@ fn make_child_cmdline() -> CString {
                     std::env::set_var("__PYVENV_LAUNCHER__", current_exe);
                     if !check_pyvenvcfg_home(python_exe.as_path()) {
                         dbg!("***** Setting PYTHONHOME to {:?}", python_exe.as_path());
-                        std::env::set_var("PYTHONHOME", python_exe.parent().expect("FIXME").as_path());
+                        std::env::set_var("PYTHONHOME", python_exe.parent().expect("FIXME"));
                     }
                 }
             }
