@@ -70,7 +70,6 @@ fn make_child_cmdline() -> CString {
         error_and_exit("Failed to get executable name");
     });
     let (kind, python_exe) = read_trampoline_metadata(executable_name.as_ref());
-    dbg!("***** python_exe: {:?}", &python_exe);
     let mut child_cmdline = Vec::<u8>::new();
 
     push_quoted_path(python_exe.as_ref(), &mut child_cmdline);
@@ -80,7 +79,6 @@ fn make_child_cmdline() -> CString {
     match kind {
         TrampolineKind::Python => {
             if let Ok(current_exe) = std::env::current_exe() {
-                dbg!("***** current_exe (PYVENV_LAUNCHER): {:?}", &current_exe);
                 // `std::env::set_var` is safe to call on Windows.
                 unsafe {
                     // Setting this env var will cause `getpath.py` to set
@@ -89,9 +87,13 @@ fn make_child_cmdline() -> CString {
                     // (in `launcher.c`). This allows virtual environments to
                     // be correctly detected when using trampolines.
                     std::env::set_var("__PYVENV_LAUNCHER__", current_exe);
+                    // If this is not a virtual environment (indicated by the presence
+                    // of a `pyvenv.cfg` file with a `home` key), then set `PYTHONHOME`
+                    // to the parent directory of the executable. This ensures that the
+                    // correct directories are added to `sys.path` when running with a
+                    // junction trampoline.
                     if !check_pyvenvcfg_home(python_exe.as_path()) {
-                        dbg!("***** Setting PYTHONHOME to {:?}", python_exe.as_path());
-                        std::env::set_var("PYTHONHOME", python_exe.parent().expect("FIXME"));
+                        std::env::set_var("PYTHONHOME", python_exe.parent().expect("Python executable should have a parent directory"));
                     }
                 }
             }
@@ -149,22 +151,16 @@ fn check_pyvenvcfg_home(exec_dir: &Path) -> bool {
     for dir in &[parent_dir, exec_dir] {
         let pyvenv_path = dir.join("pyvenv.cfg");
         if pyvenv_path.exists() {
-            return true;
-            // if let Ok(file) = File::open(&pyvenv_path) {
-            //     let reader = BufReader::new(file);
-            //     for line in reader.lines() {
-            //         if let Ok(line) = line {
-            //             if line.trim().starts_with("home") {
-            //                 let parts: Vec<&str> = line.splitn(2, '=').collect();
-            //                 if parts.len() > 1 {
-            //                     venv_home = parts[1].trim().to_string();
-            //                     found_venv_cfg = true;
-            //                     break;
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
+            if let Ok(file) = File::open(&pyvenv_path) {
+                let reader = BufReader::new(file);
+                for line in reader.lines() {
+                    if let Ok(line) = line {
+                        if line.trim().starts_with("home") {
+                            return true;
+                        }
+                    }
+                }
+            }
         }
     }
     false
