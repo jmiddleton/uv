@@ -1,7 +1,7 @@
 #![allow(clippy::disallowed_types)]
 use std::ffi::{c_void, CString};
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
 use std::vec::Vec;
