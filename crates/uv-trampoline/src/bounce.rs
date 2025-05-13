@@ -70,6 +70,7 @@ fn make_child_cmdline() -> CString {
         error_and_exit("Failed to get executable name");
     });
     let (kind, python_exe) = read_trampoline_metadata(executable_name.as_ref());
+    dbg!("***** python_exe: {:?}", &python_exe);
     let mut child_cmdline = Vec::<u8>::new();
 
     push_quoted_path(python_exe.as_ref(), &mut child_cmdline);
@@ -79,6 +80,7 @@ fn make_child_cmdline() -> CString {
     match kind {
         TrampolineKind::Python => {
             if let Ok(current_exe) = std::env::current_exe() {
+                dbg!("***** current_exe (PYVENV_LAUNCHER): {:?}", &current_exe);
                 // `std::env::set_var` is safe to call on Windows.
                 unsafe {
                     // Setting this env var will cause `getpath.py` to set
@@ -109,6 +111,12 @@ fn make_child_cmdline() -> CString {
     //     &*executable_name.to_string_lossy(),
     //     std::str::from_utf8(child_cmdline.as_slice()).unwrap()
     // );
+
+    dbg!(
+        "executable_name: '{}'\nnew_cmdline: {}",
+        &*executable_name.to_string_lossy(),
+        std::str::from_utf8(child_cmdline.as_slice()).unwrap()
+    );
 
     CString::from_vec_with_nul(child_cmdline).unwrap_or_else(|_| {
         error_and_exit("Child command line is not correctly null terminated");
