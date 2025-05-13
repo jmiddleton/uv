@@ -680,10 +680,10 @@ impl DirectorySymlink {
             .is_some_and(|c| c.as_os_str() == "bin")
         {
             let target_directory = parent.parent()?.to_path_buf();
-            let symlink = target_directory.with_file_name(symlink_directory_name);
-            let symlink_executable = symlink.join("bin").join(executable_name);
+            let symlink_directory = target_directory.with_file_name(symlink_directory_name);
+            let symlink_executable = symlink_directory.join("bin").join(executable_name);
             Some(Self {
-                symlink_directory: symlink,
+                symlink_directory,
                 symlink_executable,
                 target_directory,
             })
@@ -693,11 +693,11 @@ impl DirectorySymlink {
         #[cfg(windows)]
         {
             let target_directory = parent.to_path_buf();
-            let symlink = target_directory.with_file_name(symlink_directory_name);
-            let symlink_directory = symlink.join(executable_name);
+            let symlink_directory = target_directory.with_file_name(symlink_directory_name);
+            let symlink_executable = symlink_directory.join(executable_name);
             Some(Self {
-                symlink,
                 symlink_directory,
+                symlink_executable,
                 target_directory,
             })
         }
@@ -707,7 +707,7 @@ impl DirectorySymlink {
         self.symlink_directory == self.target_directory
     }
 
-    pub fn symlink_exists(&self) -> bool {
+    pub fn symlink_directory_exists(&self) -> bool {
         #[cfg(unix)]
         {
             self.symlink_directory
@@ -717,7 +717,7 @@ impl DirectorySymlink {
         }
         #[cfg(windows)]
         {
-            self.symlink.symlink_metadata().is_ok_and(|metadata| {
+            self.symlink_directory.symlink_metadata().is_ok_and(|metadata| {
                 // Check that this is a reparse point, which indicates this
                 // is a symlink or junction.
                 (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0

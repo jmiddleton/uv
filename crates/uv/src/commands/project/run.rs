@@ -1271,7 +1271,7 @@ impl RunCommand {
                                 interpreter.python_minor(),
                                 symlink_path.as_path(),
                             )
-                            .is_some_and(|directory_symlink| directory_symlink.symlink_exists())
+                            .is_some_and(|directory_symlink| directory_symlink.symlink_directory_exists())
                         })
                         .unwrap_or_else(|| PathBuf::from(interpreter.sys_executable()));
                     Command::new(executable)

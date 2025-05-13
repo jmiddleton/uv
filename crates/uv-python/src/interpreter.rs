@@ -645,7 +645,7 @@ impl<'a> StandaloneInterpreter<'a> {
 
         #[cfg(windows)]
         {
-            let path_link = symlink_directory.symlink.join(file_name);
+            let path_link = symlink_directory.symlink_directory.join(file_name);
 
             debug!(
                 "Using junction instead of base Python path: {}",

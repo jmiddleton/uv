@@ -183,7 +183,7 @@ pub(crate) fn create(
             interpreter.python_minor(),
             executable_target.as_path(),
         )
-        .is_some_and(|directory_symlink| !directory_symlink.symlink_exists())
+        .is_some_and(|directory_symlink| !directory_symlink.symlink_directory_exists())
         {
             create_symlink_directory(
                 interpreter.python_major(),
