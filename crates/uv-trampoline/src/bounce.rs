@@ -85,7 +85,7 @@ fn make_child_cmdline() -> CString {
                 // the approach taken by CPython for Python Launchers
                 // (in `launcher.c`). This allows virtual environments to
                 // be correctly detected when using trampolines.
-                std::env::set_var("__PYVENV_LAUNCHER__", executable_name.as_ref());
+                std::env::set_var("__PYVENV_LAUNCHER__", &executable_name);
             }
         }
         TrampolineKind::Script => {
