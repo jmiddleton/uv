@@ -23,7 +23,7 @@ use regex::Regex;
 use tokio::io::AsyncWriteExt;
 use uv_cache::Cache;
 use uv_fs::Simplified;
-use uv_python::managed::ManagedPythonInstallations;
+use uv_python::managed::{DirectorySymlink, ManagedPythonInstallations};
 use uv_python::{
     EnvironmentPreference, PythonInstallation, PythonPreference, PythonRequest, PythonVersion,
 };
@@ -528,6 +528,15 @@ impl TestContext {
                     .into_iter()
                     .map(|pattern| (pattern.to_string(), format!("[PYTHON-{version}]"))),
             );
+
+            // Add filtering for the symlink path for the executable
+            if let Some(directory_symlink) = DirectorySymlink::try_from(version.major(), version.minor(), executable) {
+                filters.extend(
+                    Self::path_patterns(directory_symlink.symlink)
+                        .into_iter()
+                        .map(|pattern| (pattern.to_string(), format!("[PYTHON-{version}]"))),
+                );
+            }
 
             // And for the symlink we created in the test the Python path
             filters.extend(
