@@ -78,16 +78,14 @@ fn make_child_cmdline() -> CString {
     // Only execute the trampoline again if it's a script, otherwise, just invoke Python.
     match kind {
         TrampolineKind::Python => {
-            if let Ok(current_exe) = std::env::current_exe() {
-                // `std::env::set_var` is safe to call on Windows.
-                unsafe {
-                    // Setting this env var will cause `getpath.py` to set
-                    // `executable` to the path to this trampoline. This is
-                    // the approach taken by CPython for Python Launchers
-                    // (in `launcher.c`). This allows virtual environments to
-                    // be correctly detected when using trampolines.
-                    std::env::set_var("__PYVENV_LAUNCHER__", current_exe);
-                }
+            // `std::env::set_var` is safe to call on Windows.
+            unsafe {
+                // Setting this env var will cause `getpath.py` to set
+                // `executable` to the path to this trampoline. This is
+                // the approach taken by CPython for Python Launchers
+                // (in `launcher.c`). This allows virtual environments to
+                // be correctly detected when using trampolines.
+                std::env::set_var("__PYVENV_LAUNCHER__", executable_name.as_ref());
             }
         }
         TrampolineKind::Script => {
