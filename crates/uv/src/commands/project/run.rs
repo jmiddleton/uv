@@ -1258,6 +1258,7 @@ impl RunCommand {
     fn as_command(&self, interpreter: &Interpreter, is_patch_request: bool) -> Command {
         match self {
             Self::Python(args) => {
+                dbg!("is_standalone: {:?}, is_patch_request: {:?}, sys_executable: {:?}", interpreter.is_standalone(), is_patch_request, interpreter.sys_executable());
                 let mut process = if is_patch_request || !interpreter.is_standalone() {
                     Command::new(interpreter.sys_executable())
                 } else {
