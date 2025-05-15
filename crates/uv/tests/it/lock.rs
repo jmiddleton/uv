@@ -4454,7 +4454,7 @@ fn lock_requires_python_upper() -> Result<()> {
 #[cfg(feature = "python-patch")]
 #[test]
 fn lock_requires_python_exact() -> Result<()> {
-    let context = TestContext::new("3.13.0");
+    let context = TestContext::new("3.13");
 
     let lockfile = context.temp_dir.join("uv.lock");
 
@@ -4468,6 +4468,16 @@ fn lock_requires_python_exact() -> Result<()> {
         dependencies = ["iniconfig"]
         "#,
     )?;
+
+    uv_snapshot!(context.filters(), context.python_pin().arg("3.13.0"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.8.12
+
+    ----- stderr -----
+    "
+    );
 
     uv_snapshot!(context.filters(), context.lock(), @r"
     success: true

@@ -3834,13 +3834,13 @@ fn python_greater_than_current_many() {
 #[cfg(feature = "python-patch")]
 #[test]
 fn python_greater_than_current_patch() {
-    let context = TestContext::new("3.8.12");
+    let context = TestContext::new("3.8");
 
     // In addition to the standard filters, swap out package names for shorter messages
     let mut filters = context.filters();
     filters.push((r"python-greater-than-current-patch-", "package-"));
 
-    uv_snapshot!(context.filters(), context.run().arg("python").arg("--version"), @r"
+    uv_snapshot!(context.filters(), context.python_pin().arg("3.8.12"), @r"
     success: true
     exit_code: 0
     ----- stdout -----

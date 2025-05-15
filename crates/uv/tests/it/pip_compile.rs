@@ -11707,9 +11707,19 @@ fn dynamic_dependencies() -> Result<()> {
 #[cfg(feature = "python-patch")]
 #[test]
 fn emit_marker_expression_exciting_linux() -> Result<()> {
-    let context = TestContext::new("3.12.9");
+    let context = TestContext::new("3.12");
     let requirements_in = context.temp_dir.child("requirements.in");
     requirements_in.write_str("anyio")?;
+
+    uv_snapshot!(context.filters(), context.python_pin().arg("3.12.9"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.8.12
+
+    ----- stderr -----
+    "
+    );
 
     uv_snapshot!(context
         .pip_compile()
@@ -11743,9 +11753,19 @@ fn emit_marker_expression_exciting_linux() -> Result<()> {
 #[cfg(feature = "python-patch")]
 #[test]
 fn emit_marker_expression_direct() -> Result<()> {
-    let context = TestContext::new("3.12.9");
+    let context = TestContext::new("3.12");
     let requirements_in = context.temp_dir.child("requirements.in");
     requirements_in.write_str("anyio ; sys_platform == 'linux'")?;
+
+    uv_snapshot!(context.filters(), context.python_pin().arg("3.12.9"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.8.12
+
+    ----- stderr -----
+    "
+    );
 
     uv_snapshot!(context
         .pip_compile()
@@ -11813,9 +11833,19 @@ fn emit_marker_expression_conditional() -> Result<()> {
 #[cfg(feature = "python-patch")]
 #[test]
 fn emit_marker_expression_pypy() -> Result<()> {
-    let context = TestContext::new("3.12.9");
+    let context = TestContext::new("3.12");
     let requirements_in = context.temp_dir.child("requirements.in");
     requirements_in.write_str("pendulum")?;
+
+    uv_snapshot!(context.filters(), context.python_pin().arg("3.12.9"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.8.12
+
+    ----- stderr -----
+    "
+    );
 
     uv_snapshot!(context
         .pip_compile()

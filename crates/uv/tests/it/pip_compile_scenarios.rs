@@ -364,7 +364,7 @@ fn incompatible_python_compatible_override() -> Result<()> {
 #[cfg(feature = "python-patch")]
 #[test]
 fn python_patch_override_no_patch() -> Result<()> {
-    let context = TestContext::new("3.8.18");
+    let context = TestContext::new("3.8");
     let python_versions = &[];
 
     // In addition to the standard filters, swap out package names for shorter messages
@@ -373,6 +373,16 @@ fn python_patch_override_no_patch() -> Result<()> {
 
     let requirements_in = context.temp_dir.child("requirements.in");
     requirements_in.write_str("python-patch-override-no-patch-a==1.0.0")?;
+
+    uv_snapshot!(context.filters(), context.python_pin().arg("3.8.18"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.8.12
+
+    ----- stderr -----
+    "
+    );
 
     // Since the resolver is asked to solve with 3.8, the minimum compatible Python requirement is treated as 3.8.0.
     let output = uv_snapshot!(filters, command(&context, python_versions)
@@ -412,7 +422,7 @@ fn python_patch_override_no_patch() -> Result<()> {
 #[cfg(feature = "python-patch")]
 #[test]
 fn python_patch_override_patch_compatible() -> Result<()> {
-    let context = TestContext::new("3.8.18");
+    let context = TestContext::new("3.8");
     let python_versions = &[];
 
     // In addition to the standard filters, swap out package names for shorter messages
@@ -421,6 +431,16 @@ fn python_patch_override_patch_compatible() -> Result<()> {
 
     let requirements_in = context.temp_dir.child("requirements.in");
     requirements_in.write_str("python-patch-override-patch-compatible-a==1.0.0")?;
+
+    uv_snapshot!(context.filters(), context.python_pin().arg("3.8.18"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.8.12
+
+    ----- stderr -----
+    "
+    );
 
     let output = uv_snapshot!(filters, command(&context, python_versions)
         .arg("--python-version=3.8.0")
