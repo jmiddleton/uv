@@ -479,6 +479,11 @@ impl TestContext {
         // need to be normalized
         if cfg!(unix) {
             for (version, executable) in &python_versions {
+                dbg!("non-canonicalized: {:?}", executable);
+                dbg!("non-canonicalized: {:?}", executable
+                            .as_path()
+                            .canonicalize()
+                            .expect("Failed to create canonical path"));
                 let parent = python_dir.child(version.to_string());
                 parent.create_dir_all().unwrap();
                 parent
