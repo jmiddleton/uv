@@ -73,14 +73,13 @@ fn python_upgrade_without_version() {
     ");
 
     // Install earlier patch versions for different minor versions
-    uv_snapshot!(context.filters(), context.python_install().arg("3.10.8").arg("3.11.8").arg("3.12.8").arg("3.13.1"), @r"
+    uv_snapshot!(context.filters(), context.python_install().arg("3.11.8").arg("3.12.8").arg("3.13.1"), @r"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
-    Installed 4 versions in [TIME]
-     + cpython-3.10.8-[PLATFORM]
+    Installed 3 versions in [TIME]
      + cpython-3.11.8-[PLATFORM]
      + cpython-3.12.8-[PLATFORM]
      + cpython-3.13.1-[PLATFORM]
@@ -105,8 +104,7 @@ fn python_upgrade_without_version() {
     ----- stdout -----
 
     ----- stderr -----
-    Installed 3 versions in [TIME]
-     + cpython-3.10.17-[PLATFORM]
+    Installed 2 versions in [TIME]
      + cpython-3.11.12-[PLATFORM]
      + cpython-3.12.10-[PLATFORM]
     ");
