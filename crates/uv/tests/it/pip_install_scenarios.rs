@@ -3840,6 +3840,16 @@ fn python_greater_than_current_patch() {
     let mut filters = context.filters();
     filters.push((r"python-greater-than-current-patch-", "package-"));
 
+    uv_snapshot!(context.filters(), context.run().arg("python").arg("--version"), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    Python 3.8.12
+
+    ----- stderr -----
+    "
+    );
+
     uv_snapshot!(filters, command(&context)
         .arg("python-greater-than-current-patch-a==1.0.0")
         , @r###"
