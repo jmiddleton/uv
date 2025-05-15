@@ -479,9 +479,10 @@ impl TestContext {
         // need to be normalized
         if cfg!(unix) {
             for (version, executable) in &python_versions {
+                let executable = std::fs::canonicalize(executable)?;
                 let parent = python_dir.child(version.to_string());
                 parent.create_dir_all().unwrap();
-                parent.child("python3").symlink_to_file(executable).unwrap();
+                parent.child("python3").symlink_to_file(&executable).unwrap();
             }
         }
 
@@ -1416,7 +1417,7 @@ pub fn python_installations_for_versions(
     let selected_pythons = python_versions
         .iter()
         .map(|python_version| {
-            dbg!("Setting up version {python_version}");
+            dbg!("Setting up version {}", python_version);
             if let Ok(python) = PythonInstallation::find(
                 &PythonRequest::parse(python_version),
                 EnvironmentPreference::OnlySystem,
