@@ -506,6 +506,7 @@ fn python_transparent_upgrade_venv_venv() {
     let context: TestContext = TestContext::new_with_versions(&["3.13"])
         .with_filtered_python_keys()
         .with_filtered_exe_suffix()
+        .with_filtered_virtualenv_bin()
         .with_managed_python_dirs();
 
     // Install an earlier patch version
@@ -531,51 +532,38 @@ fn python_transparent_upgrade_venv_venv() {
     Activate with: source .venv/[BIN]/activate
     ");
 
-    let venv_scripts = if cfg!(windows) {
-        context.venv.child("Scripts")
+    let venv_python = if cfg!(windows) {
+        context.venv.child("Scripts/python")
     } else {
-        context.venv.child("bin")
+        context.venv.child("bin/python")
     };
 
-    // Init a new project from within a virtual environment
-    // (simulating an active environment via `$PATH`).
-    uv_snapshot!(context.filters(), context.init().arg("proj")
-        .env(EnvVars::PATH, venv_scripts.as_os_str()), @r"
-    success: true
-    exit_code: 0
-    ----- stdout -----
-
-    ----- stderr -----
-    Initialized project `proj` at `[TEMP_DIR]/proj`
-    ");
+    let second_venv = ".venv2";
 
     // Create a new virtual environment from within a virtual environment
     uv_snapshot!(context.filters(), context.venv()
-        .arg("--directory").arg("proj")
-        .env(EnvVars::PATH, venv_scripts.as_os_str()), @r"
+        .arg(second_venv)
+        .arg("-p").arg(venv_python.as_os_str()), @r"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
-    Using CPython 3.10.8
-    Creating virtual environment at: .venv
-    Activate with: source .venv/[BIN]/activate
+    Using CPython 3.10.8 interpreter at: .venv/[BIN]/python
+    Creating virtual environment at: .venv2
+    Activate with: source .venv2/[BIN]/activate
     ");
 
     // Check version from within second virtual environment
     uv_snapshot!(context.filters(), context.run()
-        .env(EnvVars::VIRTUAL_ENV, ".venv")
-        .arg("--directory").arg("proj")
-        .arg("python").arg("--version"), @r"
+        .arg("python").arg("--version")
+        .env(EnvVars::VIRTUAL_ENV, second_venv), @r"
     success: true
     exit_code: 0
     ----- stdout -----
     Python 3.10.8
 
     ----- stderr -----
-    Resolved 1 package in [TIME]
-    Audited in [TIME]
     "
     );
 
@@ -591,24 +579,15 @@ fn python_transparent_upgrade_venv_venv() {
     ");
 
     // Should have transparently upgraded in second virtual environment
-    // TODO(john): This shouldn't recreate the virtual environment. We
-    // need to activate the first virtual environment in this test when
-    // creating the second.
     uv_snapshot!(context.filters(), context.run()
-        .env(EnvVars::VIRTUAL_ENV, ".venv")
-        .arg("--directory").arg("proj")
-        .arg("python").arg("--version"), @r"
+        .arg("python").arg("--version")
+        .env(EnvVars::VIRTUAL_ENV, second_venv), @r"
     success: true
     exit_code: 0
     ----- stdout -----
     Python 3.10.17
 
     ----- stderr -----
-    Using CPython 3.10.17
-    Removed virtual environment at: .venv
-    Creating virtual environment at: .venv
-    Resolved 1 package in [TIME]
-    Audited in [TIME]
     "
     );
 }
