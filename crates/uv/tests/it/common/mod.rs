@@ -1416,13 +1416,17 @@ pub fn python_installations_for_versions(
     let selected_pythons = python_versions
         .iter()
         .map(|python_version| {
+            dbg!("Setting up version {python_version}");
             if let Ok(python) = PythonInstallation::find(
                 &PythonRequest::parse(python_version),
                 EnvironmentPreference::OnlySystem,
                 PythonPreference::Managed,
                 &cache,
             ) {
-                python.into_interpreter().sys_executable().to_owned()
+                dbg!("-- installation: {:?}", &python);
+                let exec = python.into_interpreter().sys_executable().to_owned();
+                dbg!("-- exec: {:?}", &exec);
+                exec
             } else {
                 panic!("Could not find Python {python_version} for test");
             }
