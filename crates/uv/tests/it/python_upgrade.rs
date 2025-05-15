@@ -533,7 +533,7 @@ fn python_transparent_upgrade_venv_venv() {
     ");
 
     let venv_python = if cfg!(windows) {
-        context.venv.child("Scripts/python")
+        context.venv.child("Scripts/python.exe")
     } else {
         context.venv.child("bin/python")
     };

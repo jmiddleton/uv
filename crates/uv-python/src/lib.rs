@@ -9,11 +9,9 @@ pub use crate::discovery::{
     PythonNotFound, PythonPreference, PythonRequest, PythonSource, PythonVariant, VersionRequest,
 };
 pub use crate::environment::{InvalidEnvironmentKind, PythonEnvironment};
-pub use crate::implementation::ImplementationName;
+pub use crate::implementation::{ImplementationName, LenientImplementationName};
 pub use crate::installation::{PythonInstallation, PythonInstallationKey};
-pub use crate::interpreter::{
-    BrokenSymlink, Error as InterpreterError, Interpreter, StandaloneInterpreter,
-};
+pub use crate::interpreter::{BrokenSymlink, Error as InterpreterError, Interpreter};
 pub use crate::pointer_size::PointerSize;
 pub use crate::prefix::Prefix;
 pub use crate::python_version::PythonVersion;

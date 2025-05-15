@@ -4661,8 +4661,12 @@ pub enum PythonCommand {
 
     /// Upgrade Python to the latest patch version.
     ///
-    /// Multiple Python minor versions may be requested. If none are provided, upgrades will
-    /// be attempted for all installed minor versions.
+    /// Multiple Python minor versions may be requested. If none are provided, upgrades will be
+    /// attempted for all managed, installed CPython minor versions.
+    ///
+    /// Virtual environments created by uv will transparently upgrade their patch version in the
+    /// case of an upgrade. But if they were created before the upgrade feature was added to uv,
+    /// they would need to be recreated to reflect upgrades.
     Upgrade(PythonUpgradeArgs),
 
     /// Search for a Python installation.

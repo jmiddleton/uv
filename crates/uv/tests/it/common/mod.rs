@@ -25,7 +25,8 @@ use uv_cache::Cache;
 use uv_fs::Simplified;
 use uv_python::managed::{DirectorySymlink, ManagedPythonInstallations};
 use uv_python::{
-    EnvironmentPreference, PythonInstallation, PythonPreference, PythonRequest, PythonVersion,
+    EnvironmentPreference, ImplementationName, LenientImplementationName, PythonInstallation,
+    PythonPreference, PythonRequest, PythonVersion,
 };
 use uv_static::EnvVars;
 
@@ -530,11 +531,14 @@ impl TestContext {
             );
 
             // Add filtering for the symlink path for the executable
-            if let Some(directory_symlink) =
-                DirectorySymlink::try_from(version.major(), version.minor(), executable)
-            {
+            if let Some(directory_symlink) = DirectorySymlink::try_from(
+                version.major(),
+                version.minor(),
+                executable.as_path(),
+                &LenientImplementationName::from(ImplementationName::CPython),
+            ) {
                 filters.extend(
-                    Self::path_patterns(directory_symlink.symlink)
+                    Self::path_patterns(directory_symlink.symlink_directory)
                         .into_iter()
                         .map(|pattern| (pattern.to_string(), format!("[PYTHON-{version}]"))),
                 );

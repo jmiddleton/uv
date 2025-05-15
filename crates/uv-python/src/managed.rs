@@ -29,7 +29,7 @@ use crate::libc::LibcDetectionError;
 use crate::platform::Error as PlatformError;
 use crate::platform::{Arch, Libc, Os};
 use crate::python_version::PythonVersion;
-use crate::{macos_dylib, sysconfig, PythonRequest, PythonVariant};
+use crate::{macos_dylib, sysconfig, Interpreter, PythonRequest, PythonVariant};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -396,13 +396,11 @@ impl ManagedPythonInstallation {
             exe = std::env::consts::EXE_SUFFIX
         );
 
-        let executable = if cfg!(unix) || *self.implementation() == ImplementationName::GraalPy {
-            self.python_dir().join("bin").join(name)
-        } else if cfg!(windows) {
-            self.python_dir().join(name)
-        } else {
-            unimplemented!("Only Windows and Unix systems are supported.")
-        };
+        let executable = executable_path_from_home(
+            self.python_dir().as_path(),
+            &name,
+            &LenientImplementationName::from(*self.implementation()),
+        );
 
         // Workaround for python-build-standalone v20241016 which is missing the standard
         // `python.exe` executable in free-threaded distributions on Windows.
@@ -519,19 +517,15 @@ impl ManagedPythonInstallation {
     /// Ensure the environment contains the symlink directory (or junction on Windows)
     /// pointing to the patch directory for this minor version.
     pub fn ensure_minor_version_link(&self) -> Result<(), Error> {
-        // We don't currently support transparent upgrades for PyPy or GraalPy
-        // so we don't create a symlink directory (or junction on Windows).
-        if !matches!(
-            self.key.implementation(),
-            LenientImplementationName::Known(ImplementationName::CPython)
-        ) {
-            return Ok(());
-        }
-        create_symlink_directory(
+        if let Some(directory_symlink) = DirectorySymlink::try_from(
             self.key.major,
             self.key.minor,
             self.executable(false).as_path(),
-        )
+            self.key.implementation(),
+        ) {
+            directory_symlink.create_directory()?;
+        }
+        Ok(())
     }
 
     /// Ensure the environment is marked as externally managed with the
@@ -663,14 +657,39 @@ impl ManagedPythonInstallation {
 
 #[derive(Clone, Debug)]
 pub struct DirectorySymlink {
-    pub symlink: PathBuf,
+    pub symlink_directory: PathBuf,
+    pub symlink_executable: PathBuf,
     pub target_directory: PathBuf,
 }
 
 impl DirectorySymlink {
-    pub fn try_from(major: u8, minor: u8, executable: &Path) -> Option<Self> {
-        let symlink_directory_name = format!("python{major}.{minor}-dir");
-        let parent = executable.parent()?;
+    /// Attempt to derive a path from an executable path that substitutes a minor
+    /// version symlink directory (or junction on Windows) for the patch version
+    /// directory.
+    ///
+    /// The implementation is expected to be CPython and, on Unix, the base Python is
+    /// expected to be in `<home>/bin/` on Unix. If either condition isn't true,
+    /// return [`None`].
+    pub fn try_from(
+        major: u8,
+        minor: u8,
+        executable: &Path,
+        implementation: &LenientImplementationName,
+    ) -> Option<Self> {
+        if !matches!(
+            implementation,
+            LenientImplementationName::Known(ImplementationName::CPython)
+        ) {
+            // We don't currently support transparent upgrades for PyPy or GraalPy.
+            return None;
+        }
+        let executable_name = executable
+            .file_name()
+            .expect("Executable file name should exist");
+        let symlink_directory_name = format!("python{major}.{minor}");
+        let parent = executable
+            .parent()
+            .expect("Executable should have parent directory");
         #[cfg(unix)]
         if parent
             .components()
@@ -678,9 +697,19 @@ impl DirectorySymlink {
             .is_some_and(|c| c.as_os_str() == "bin")
         {
             let target_directory = parent.parent()?.to_path_buf();
-            let symlink = target_directory.with_file_name(symlink_directory_name);
+            let symlink_directory = target_directory.with_file_name(symlink_directory_name);
+            if target_directory == symlink_directory {
+                return None;
+            }
+            let symlink_executable = executable_path_from_home(
+                symlink_directory.as_path(),
+                &executable_name.to_string_lossy(),
+                implementation,
+            );
+
             Some(Self {
-                symlink,
+                symlink_directory,
+                symlink_executable,
                 target_directory,
             })
         } else {
@@ -689,71 +718,99 @@ impl DirectorySymlink {
         #[cfg(windows)]
         {
             let target_directory = parent.to_path_buf();
-            let symlink = target_directory.with_file_name(symlink_directory_name);
+            let symlink_directory = target_directory.with_file_name(symlink_directory_name);
+            if target_directory == symlink_directory {
+                return None;
+            }
+            let symlink_executable = executable_path_from_home(
+                symlink_directory.as_path(),
+                &executable_name.to_string_lossy(),
+                implementation,
+            );
             Some(Self {
-                symlink,
+                symlink_directory,
+                symlink_executable,
                 target_directory,
             })
         }
     }
 
-    pub fn is_self_link(&self) -> bool {
-        self.symlink == self.target_directory
+    pub fn try_from_interpreter(interpreter: &Interpreter) -> Option<Self> {
+        DirectorySymlink::try_from(
+            interpreter.python_major(),
+            interpreter.python_minor(),
+            interpreter.sys_executable(),
+            &LenientImplementationName::from(interpreter.implementation_name()),
+        )
+    }
+
+    pub fn create_directory(&self) -> Result<(), Error> {
+        match replace_symlink(
+            self.target_directory.as_path(),
+            self.symlink_directory.as_path(),
+        ) {
+            Ok(()) => {
+                debug!(
+                    "Created link {} -> {}",
+                    &self.symlink_directory.user_display(),
+                    &self.target_directory.user_display(),
+                );
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                return Err(Error::MissingLinkTargetDirectory(
+                    self.target_directory.clone(),
+                ))
+            }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(err) => {
+                return Err(Error::ExecutableLinkDirectory {
+                    from: self.symlink_directory.clone(),
+                    to: self.target_directory.clone(),
+                    err,
+                })
+            }
+        }
+        Ok(())
     }
 
     pub fn symlink_exists(&self) -> bool {
         #[cfg(unix)]
         {
-            self.symlink
+            self.symlink_directory
                 .symlink_metadata()
                 .map(|metadata| metadata.file_type().is_symlink())
                 .unwrap_or(false)
         }
         #[cfg(windows)]
         {
-            self.symlink.symlink_metadata().is_ok_and(|metadata| {
-                // Check that this is a reparse point, which indicates this
-                // is a symlink or junction.
-                (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0
-            })
+            self.symlink_directory
+                .symlink_metadata()
+                .is_ok_and(|metadata| {
+                    // Check that this is a reparse point, which indicates this
+                    // is a symlink or junction.
+                    (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0
+                })
         }
     }
 }
 
-pub fn create_symlink_directory(major: u8, minor: u8, executable: &Path) -> Result<(), Error> {
-    let Some(directory_symlink) = DirectorySymlink::try_from(major, minor, executable) else {
-        return Ok(());
-    };
-    if directory_symlink.is_self_link() {
-        return Ok(());
+pub fn executable_path_from_home(
+    home: &Path,
+    executable_name: &str,
+    implementation: &LenientImplementationName,
+) -> PathBuf {
+    if cfg!(unix)
+        || matches!(
+            implementation,
+            &LenientImplementationName::Known(ImplementationName::GraalPy)
+        )
+    {
+        home.join("bin").join(executable_name)
+    } else if cfg!(windows) {
+        home.join(executable_name)
+    } else {
+        unimplemented!("Only Windows and Unix systems are supported.")
     }
-
-    match replace_symlink(
-        directory_symlink.target_directory.as_path(),
-        directory_symlink.symlink.as_path(),
-    ) {
-        Ok(()) => {
-            debug!(
-                "Created link {} -> {}",
-                &directory_symlink.symlink.user_display(),
-                &directory_symlink.target_directory.user_display(),
-            );
-        }
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            return Err(Error::MissingLinkTargetDirectory(
-                directory_symlink.target_directory.clone(),
-            ))
-        }
-        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
-        Err(err) => {
-            return Err(Error::ExecutableLinkDirectory {
-                from: directory_symlink.symlink,
-                to: directory_symlink.target_directory,
-                err,
-            })
-        }
-    }
-    Ok(())
 }
 
 /// Create a link to the managed Python executable.

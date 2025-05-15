@@ -28,7 +28,7 @@ use uv_normalize::{DefaultExtras, DefaultGroups, PackageName};
 use uv_python::managed::DirectorySymlink;
 use uv_python::{
     EnvironmentPreference, Interpreter, PyVenvConfiguration, PythonDownloads, PythonEnvironment,
-    PythonInstallation, PythonPreference, PythonRequest, PythonVersionFile, StandaloneInterpreter,
+    PythonInstallation, PythonPreference, PythonRequest, PythonVersionFile,
     VersionFileDiscoveryOptions, VersionRequest,
 };
 use uv_requirements::{RequirementsSource, RequirementsSpecification};
@@ -1261,18 +1261,13 @@ impl RunCommand {
                 let mut process = if is_patch_request || !interpreter.is_standalone() {
                     Command::new(interpreter.sys_executable())
                 } else {
-                    let executable = StandaloneInterpreter::try_from(interpreter)
-                        .and_then(|standalone| {
-                            standalone.symlink_path_from_base_python(interpreter.sys_executable())
-                        })
-                        .filter(|symlink_path| {
-                            DirectorySymlink::try_from(
-                                interpreter.python_major(),
-                                interpreter.python_minor(),
-                                symlink_path.as_path(),
-                            )
-                            .is_some_and(|directory_symlink| directory_symlink.symlink_exists())
-                        })
+                    // If this is a standalone interpreter, there is no patch request, and a
+                    // minor version symlink directory (or junction on Windows) exists,
+                    // run Python using an executable path containing that directory. This ensures that
+                    // virtual environments created with `uv run python -m venv` will be upgradeable.
+                    let executable = DirectorySymlink::try_from_interpreter(interpreter)
+                        .filter(DirectorySymlink::symlink_exists)
+                        .map(|directory_symlink| directory_symlink.symlink_executable.clone())
                         .unwrap_or_else(|| PathBuf::from(interpreter.sys_executable()));
                     Command::new(executable)
                 };

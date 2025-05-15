@@ -12,8 +12,8 @@ use tracing::debug;
 
 use uv_fs::{cachedir, Simplified, CWD};
 use uv_pypi_types::Scheme;
-use uv_python::managed::{create_bin_link, create_symlink_directory, DirectorySymlink};
-use uv_python::{Interpreter, StandaloneInterpreter, VirtualEnvironment};
+use uv_python::managed::{create_bin_link, DirectorySymlink};
+use uv_python::{Interpreter, LenientImplementationName, VirtualEnvironment};
 use uv_shell::escape_posix_for_single_quotes;
 use uv_version::version;
 
@@ -145,13 +145,32 @@ pub(crate) fn create(
     // Create a `.gitignore` file to ignore all files in the venv.
     fs::write(location.join(".gitignore"), "*")?;
 
-    let mut using_symlink_path = false;
-    let executable_target = if upgradeable {
-        if let Some(standalone_interpreter) = StandaloneInterpreter::try_from(interpreter) {
-            standalone_interpreter
-                .symlink_path_from_base_python(base_python.as_path())
-                .inspect(|_| using_symlink_path = true)
-                .unwrap_or_else(|| base_python.clone())
+    let executable_target = if upgradeable && interpreter.is_standalone() {
+        if let Some(directory_symlink) = DirectorySymlink::try_from(
+            interpreter.python_major(),
+            interpreter.python_minor(),
+            base_python.as_path(),
+            &LenientImplementationName::from(interpreter.implementation_name()),
+        ) {
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                let debug_symlink_term = if cfg!(windows) {
+                    "junction"
+                } else {
+                    "symlink directory"
+                };
+                debug!(
+                    "Using {} {} instead of base Python path: {}",
+                    debug_symlink_term,
+                    &directory_symlink.symlink_directory.display(),
+                    &base_python.display()
+                );
+            }
+            if !directory_symlink.symlink_exists() {
+                directory_symlink
+                    .create_directory()
+                    .map_err(Error::Python)?;
+            }
+            directory_symlink.symlink_executable.clone()
         } else {
             base_python.clone()
         }
@@ -176,23 +195,6 @@ pub(crate) fn create(
     // Different names for the python interpreter
     fs::create_dir_all(&scripts)?;
     let executable = scripts.join(format!("python{EXE_SUFFIX}"));
-
-    if using_symlink_path {
-        if DirectorySymlink::try_from(
-            interpreter.python_major(),
-            interpreter.python_minor(),
-            executable_target.as_path(),
-        )
-        .is_some_and(|directory_symlink| !directory_symlink.symlink_exists())
-        {
-            create_symlink_directory(
-                interpreter.python_major(),
-                interpreter.python_minor(),
-                base_python.as_path(),
-            )
-            .map_err(Error::Python)?;
-        }
-    }
 
     #[cfg(unix)]
     {
