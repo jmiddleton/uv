@@ -13,7 +13,7 @@ use tracing::{debug, warn};
 use uv_configuration::PreviewMode;
 use uv_fs::Simplified;
 use uv_python::downloads::PythonDownloadRequest;
-use uv_python::managed::{python_executable_dir, ManagedPythonInstallations};
+use uv_python::managed::{python_executable_dir, symlink_exists, ManagedPythonInstallations};
 use uv_python::{PythonInstallationKey, PythonRequest};
 
 use crate::commands::python::install::format_executables;
@@ -87,7 +87,6 @@ async fn do_uninstall(
         // Always include pre-releases in uninstalls
         .map(|result| result.map(|request| request.with_prereleases(true)))
         .collect::<Result<Vec<_>>>()?;
-
     let installed_installations: Vec<_> = installations.find_all()?.collect();
     let mut matching_installations = BTreeSet::default();
     for (request, download_request) in requests.iter().zip(download_requests) {
@@ -221,8 +220,6 @@ async fn do_uninstall(
     // Read all existing installations and find the highest installed patch
     // for each installed minor version. Ensure the minor version link directory
     // is still valid.
-    // TODO(john): If there are no remaining installations for a minor version,
-    // remove the symlink directory (or junction on Windows).
     let uninstalled_minor_versions =
         &uninstalled
             .iter()
@@ -252,6 +249,44 @@ async fn do_uninstall(
     }
     for (_, installation) in remaining_minor_versions.values() {
         installation.ensure_minor_version_link()?;
+    }
+    // For each uninstalled installation, check if there are no remaining installations
+    // for its minor version. If there are none remaining, remove the symlink directory
+    // (or junction on Windows) if it exists.
+    for installation in &matching_installations {
+        if !remaining_minor_versions.contains_key(&installation.key().version().python_version()) {
+            let symlink_directory_name = format!(
+                "python{}.{}",
+                installation.key().version().major(),
+                installation.key().version().minor()
+            );
+            // Derive a symbolic directory path from the installation home path by replacing the
+            // home directory name with the symlink directory name.
+            let symlink_directory = installation.path().with_file_name(&symlink_directory_name);
+            if symlink_exists(symlink_directory.as_path()) {
+                let result = if cfg!(windows) {
+                    fs_err::remove_dir(symlink_directory.as_path())
+                } else {
+                    fs_err::remove_file(symlink_directory.as_path())
+                };
+                if result.is_err() {
+                    return Err(anyhow::anyhow!(
+                        "Failed to remove symlink directory {}",
+                        symlink_directory.display()
+                    ));
+                }
+                let symlink_term = if cfg!(windows) {
+                    "junction"
+                } else {
+                    "symlink directory"
+                };
+                debug!(
+                    "Removed {}: {}",
+                    symlink_term,
+                    symlink_directory.to_string_lossy()
+                );
+            }
+        }
     }
 
     // Report on any uninstalled installations.
