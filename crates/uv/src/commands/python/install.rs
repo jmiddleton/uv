@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fmt::Write;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 use anyhow::{Error, Result};
 use futures::StreamExt;
@@ -33,7 +32,7 @@ use crate::commands::{ExitStatus, elapsed};
 use crate::printer::Printer;
 use crate::settings::NetworkSettings;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct InstallRequest {
     /// The original request from the user
     request: PythonRequest,
@@ -173,20 +172,15 @@ pub(crate) async fn install(
         if upgrade {
             let mut minor_version_requests = FxHashSet::default();
             for installation in &existing_installations {
-                let request =
-                    VersionRequest::from_str(&installation.version().python_version().to_string())
-                        .expect("Minor version should be valid basis for VersionRequest");
-                minor_version_requests.insert(request);
+                let request = VersionRequest::major_minor_request_from_key(installation.key());
+                if let Ok(request) = InstallRequest::new(
+                    PythonRequest::Version(request),
+                    python_downloads_json_url.as_deref(),
+                ) {
+                    minor_version_requests.insert(request);
+                }
             }
-            minor_version_requests
-                .into_iter()
-                .map(|request| {
-                    InstallRequest::new(
-                        PythonRequest::Version(request),
-                        python_downloads_json_url.as_deref(),
-                    )
-                })
-                .collect::<Result<Vec<_>>>()?
+            minor_version_requests.into_iter().collect::<Vec<_>>()
         } else {
             PythonVersionFile::discover(
                 project_dir,
@@ -296,6 +290,9 @@ pub(crate) async fn install(
         requests.iter().partition_map(|request| {
             if let Some(installation) = existing_installations.iter().find(|installation| {
                 if upgrade {
+                    // If this is an upgrade, the requested version is a minor version
+                    // but the requested download is the highest patch for that minor
+                    // version. We need to install it unless an exact match is found.
                     request.download.key() == installation.key()
                 } else {
                     request.matches_installation(installation)
@@ -449,18 +446,17 @@ pub(crate) async fn install(
         // Add to minor versions map if this installation has the highest
         // patch seen for a minor version so far.
         let minor_version = installation.version().python_version();
-        if let Some(patch) = installation.version().patch() {
-            if let Some((current_patch, _)) = minor_versions.get(&minor_version) {
-                if patch >= *current_patch {
-                    minor_versions.insert(minor_version, (patch, installation));
+        minor_versions
+            .entry(minor_version)
+            .and_modify(|high_installation: &mut ManagedPythonInstallation| {
+                if installation.key() >= high_installation.key() {
+                    *high_installation = installation.clone();
                 }
-            } else {
-                minor_versions.insert(minor_version, (patch, installation));
-            }
-        }
+            })
+            .or_insert(installation);
     }
 
-    for (_, installation) in minor_versions.values() {
+    for installation in minor_versions.values() {
         installation.ensure_minor_version_link()?;
     }
 

@@ -531,7 +531,7 @@ impl TestContext {
             );
 
             // Add filtering for the symlink path for the executable
-            if let Some(directory_symlink) = DirectorySymlink::try_from(
+            if let Some(directory_symlink) = DirectorySymlink::maybe_from(
                 version.major(),
                 version.minor(),
                 executable.as_path(),
@@ -943,10 +943,7 @@ impl TestContext {
     pub fn python_upgrade(&self) -> Command {
         let mut command = self.new_command();
         self.add_shared_options(&mut command, true);
-        command
-            .arg("python")
-            .arg("upgrade")
-            .current_dir(&self.temp_dir);
+        command.arg("python").arg("upgrade");
         command
     }
 
