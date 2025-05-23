@@ -36,6 +36,17 @@ colorama_init(autoreset=True)
 
 DEFAULT_TIMEOUT = 30
 
+KNOWN_REGISTRIES = [
+    "artifactory",
+    "azure",
+    "aws",
+    "cloudsmith",
+    "gcp",
+    "gemfury",
+    "gitlab",
+    "nexus",
+]
+
 
 def get_registries() -> Dict[str, str]:
     pattern = re.compile(r"^UV_TEST_(.+)_URL$")
@@ -150,6 +161,11 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        help="fail if any known registry was not tested",
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=None,
@@ -187,6 +203,7 @@ def main() -> None:
     passed = 0
     failed = 0
     skipped = 0
+    untested_registries = set(KNOWN_REGISTRIES)
 
     print("Building...")
     build_uv()
@@ -214,6 +231,7 @@ def main() -> None:
 
         username = os.getenv(f"UV_TEST_{registry_name.upper()}_USERNAME") or "__token__"
 
+        untested_registries.remove(registry_name)
         if run_test(
             registry_name, registry_url, package, username, token, args.verbose, timeout
         ):
@@ -233,6 +251,14 @@ def main() -> None:
             "     * UV_TEST_<package_name>_PKG (the private package to test installing)"
         )
         print('     * UV_TEST_<registry_name>_USERNAME (defaults to "__token__")')
+        sys.exit(1)
+    if args.all and len(untested_registries) > 0:
+        print(
+            f"\n{Fore.RED}Failed to test all known registries (requested via --all).{Fore.RESET}\nMissing:"
+        )
+        for registry_name in untested_registries:
+            print(f"     * {registry_name}")
+        print("You must use the exact registry name as listed here")
         sys.exit(1)
 
     sys.exit(0 if failed == 0 else 1)
