@@ -558,12 +558,12 @@ impl ManagedPythonDownload {
                     Ok(file) => file,
                     Err(e) => {
                         // Windows paths can also be valid URLs
-                        if Url::parse(json_source).is_ok() {
-                            return Err(Error::RemoteJSONNotSupported());
+                        return if Url::parse(json_source).is_ok() {
+                            Err(Error::RemoteJSONNotSupported())
                         } else {
                             Err(Error::Io(e))
-                        }
-                    }?,
+                        };
+                    }
                 };
 
                 serde_json::from_reader(file)
